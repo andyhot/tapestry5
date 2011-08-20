@@ -976,6 +976,29 @@ T5.extendInitializers({
             spec.zoneId, spec.url);
     },
 
+    /**
+     * Connect any client element to a zone.
+     *
+     * @param spec
+     *            a hash containing eventName, element, zoneId and url
+     * TODO: mention about eventName alternative values
+     */
+    linkEventToZone : function(spec) {
+        var eventName = spec.event;
+        var element = spec.element;
+        var zoneId = spec.zoneId;
+        var url = spec.url;
+
+        if (eventName=='tapestry:radiogroupchange') {
+            $$('[name=' + element + ']').each(function(n){
+                T5.initializers.updateZoneOnEvent('change', n, zoneId, url);
+            });
+            return;
+        }
+
+        T5.initializers.updateZoneOnEvent(eventName, element, zoneId, url);
+    },
+
     linkSubmit : function(spec) {
 
         Tapestry.replaceElementTagName(spec.clientId, "A");
@@ -1101,8 +1124,11 @@ T5.extendInitializers({
 
             var parameters = {};
 
-            if (element.tagName == "SELECT" && element.value) {
-                parameters["t:selectvalue"] = element.value;
+            if (element.tagName.match("SELECT|INPUT|BUTTON|TEXTAREA")) {
+                var value = $F(element);
+                // include data only if there's value so that checkboxes work
+                if (value!=null)
+                    parameters["t:value"] = value;
             }
 
             zoneObject.updateFromURL(url, parameters);

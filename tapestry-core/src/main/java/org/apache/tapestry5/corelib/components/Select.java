@@ -56,7 +56,6 @@ import org.apache.tapestry5.util.EnumSelectModel;
 { EventConstants.VALIDATE, EventConstants.VALUE_CHANGED + " when 'zone' parameter is bound" })
 public class Select extends AbstractField
 {
-    public static final String CHANGE_EVENT = "change";
 
     private class Renderer extends SelectModelRenderer
     {
@@ -132,25 +131,11 @@ public class Select extends AbstractField
     @Parameter(required = true, principal = true, autoconnect = true)
     private Object value;
 
-    /**
-     * Binding the zone parameter will cause any change of Select's value to be handled as an Ajax request that updates
-     * the
-     * indicated zone. The component will trigger the event {@link EventConstants#VALUE_CHANGED} to inform its
-     * container that Select's value has changed.
-     * 
-     * @since 5.2.0
-     */
-    @Parameter(defaultPrefix = BindingConstants.LITERAL)
-    private String zone;
-
     @Inject
     private FieldValidationSupport fieldValidationSupport;
 
     @Environmental
     private FormSupport formSupport;
-
-    @Inject
-    private JavaScriptSupport javascriptSupport;
 
     @SuppressWarnings("unused")
     @Mixin
@@ -211,29 +196,6 @@ public class Select extends AbstractField
 
         // Disabled is via a mixin
 
-        if (this.zone != null)
-        {
-            Link link = resources.createEventLink(CHANGE_EVENT);
-
-            JSONObject spec = new JSONObject("selectId", getClientId(), "zoneId", zone, "url", link.toURI());
-
-            javascriptSupport.addInitializerCall("linkSelectToZone", spec);
-        }
-    }
-
-    Object onChange(@RequestParameter(value = "t:selectvalue", allowBlank = true)
-    final String selectValue)
-    {
-        final Object newValue = toValue(selectValue);
-
-        CaptureResultCallback<Object> callback = new CaptureResultCallback<Object>();
-
-        this.resources.triggerEvent(EventConstants.VALUE_CHANGED, new Object[]
-        { newValue }, callback);
-
-        this.value = newValue;
-
-        return callback.getResult();
     }
 
     protected Object toValue(String submittedValue)
