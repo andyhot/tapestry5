@@ -16,13 +16,15 @@ package org.apache.tapestry5.corelib.base;
 
 import org.apache.tapestry5.*;
 import org.apache.tapestry5.annotations.*;
-import org.apache.tapestry5.corelib.internal.InternalMessages;
+import org.apache.tapestry5.corelib.internal.FormSupportImpl;
 import org.apache.tapestry5.corelib.mixins.DiscardBody;
 import org.apache.tapestry5.corelib.mixins.RenderDisabled;
 import org.apache.tapestry5.corelib.mixins.RenderInformals;
 import org.apache.tapestry5.internal.BeanValidationContext;
 import org.apache.tapestry5.internal.InternalComponentResources;
+import org.apache.tapestry5.internal.util.CaptureResultCallback;
 import org.apache.tapestry5.ioc.annotations.Inject;
+import org.apache.tapestry5.json.JSONObject;
 import org.apache.tapestry5.services.ComponentDefaultProvider;
 import org.apache.tapestry5.services.Environment;
 import org.apache.tapestry5.services.FormSupport;
@@ -37,6 +39,8 @@ import java.io.Serializable;
 @SupportsInformalParameters
 public abstract class AbstractField implements Field
 {
+    public static final String CHANGE_EVENT = "change";
+
     /**
      * The user presentable label for the field. If not provided, a reasonable label is generated from the component's
      * id, first by looking for a message key named "id-label" (substituting the component's actual id), then by
@@ -52,6 +56,25 @@ public abstract class AbstractField implements Field
     @Parameter("false")
     private boolean disabled;
 
+    /**
+     * Binding the zone parameter will cause any change of the component's value to be handled as an
+     * Ajax request that updates the indicated zone. The component will trigger the
+     * event {@link EventConstants#VALUE_CHANGED} to inform its container its value has changed.
+     *
+     * @since 5.3.0
+     */
+    @Parameter(defaultPrefix = BindingConstants.LITERAL)
+    private String zone;
+
+    /**
+     * The client-side event that triggeres the zone update.
+     *
+     * @see #zone
+     * @since 5.3.0
+     */
+    @Parameter(defaultPrefix = BindingConstants.LITERAL)
+    private String triggerEvent;
+
     @SuppressWarnings("unused")
     @Mixin
     private DiscardBody discardBody;
@@ -61,6 +84,9 @@ public abstract class AbstractField implements Field
 
     @Inject
     private Environment environment;
+
+    @Inject
+    private JavaScriptSupport javascriptSupport;
 
     static class Setup implements ComponentAction<AbstractField>, Serializable
     {
@@ -135,6 +161,11 @@ public abstract class AbstractField implements Field
         return defaultProvider.defaultLabel(resources);
     }
 
+    protected String defaultTriggerEvent()
+    {
+        return CHANGE_EVENT;
+    }
+
     public final String getLabel()
     {
         return label;
@@ -161,6 +192,20 @@ public abstract class AbstractField implements Field
 
         formSupport.storeAndExecute(this, new Setup(controlName));
         formSupport.store(this, PROCESS_SUBMISSION_ACTION);
+    }
+
+    void afterRender() {
+        if (this.zone != null)
+        {
+            Link link = resources.createEventLink(CHANGE_EVENT);
+
+            JSONObject spec = new JSONObject(
+                    "event", triggerEvent,
+                    "element", getClientId(),
+                    "zoneId", zone,
+                    "url", link.toURI());
+            javascriptSupport.addInitializerCall("linkEventToZone", spec);
+        }
     }
 
     public final String getClientId()
@@ -190,6 +235,56 @@ public abstract class AbstractField implements Field
     {
         if (!disabled)
             processSubmission(controlName);
+    }
+
+    Object onChange()
+    {
+        // don't process the change event if no zone was set
+        if (this.zone == null)
+        {
+            return null;
+        }
+        // This onChange event was originally found in the Select component.
+        // Its contract was to call the event handler passing the the new value as parameter
+        // (and at the same time one could get the previous value by direct accessing the
+        // component property).
+        //
+        // If we still need to honour that contract, then we have to use
+        // InternalComponentResources.
+        // Otherwise, we can just call the event handler with no params and
+        // remove internalResources and valueBinding.
+        // A third alternative would be to call the handler with the new value, and don't
+        // care about returning the previous value when the component property is directly
+        // accessed (in that case we can remove oldValue).
+        InternalComponentResources internalResources = (InternalComponentResources)resources;
+        Binding valueBinding = internalResources.getBinding("value");
+
+        Object oldValue = valueBinding==null ? null : valueBinding.get();
+
+        environment.push(FormSupport.class, new FormSupportImpl(resources, null));
+        environment.push(ValidationTracker.class, new ValidationTrackerImpl());
+
+        this.processSubmission("t:value");
+
+        environment.pop(ValidationTracker.class);
+        environment.pop(FormSupport.class);
+
+        Object newValue = valueBinding==null ? null : valueBinding.get();
+
+        // set the old value so that the "contract" is kept
+        if (valueBinding!=null)
+            valueBinding.set(oldValue);
+
+        CaptureResultCallback<Object> callback = new CaptureResultCallback<Object>();
+
+        this.resources.triggerEvent(EventConstants.VALUE_CHANGED, new Object[]
+        { newValue }, callback);
+
+        // now set back the new value
+        if (valueBinding!=null)
+            valueBinding.set(newValue);
+
+        return callback.getResult();
     }
 
     /**
