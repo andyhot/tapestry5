@@ -18,6 +18,7 @@ import org.apache.tapestry5.*;
 import org.apache.tapestry5.annotations.Environmental;
 import org.apache.tapestry5.annotations.Events;
 import org.apache.tapestry5.annotations.Parameter;
+import org.apache.tapestry5.corelib.base.AbstractField;
 import org.apache.tapestry5.internal.TapestryInternalUtils;
 import org.apache.tapestry5.ioc.annotations.Inject;
 import org.apache.tapestry5.services.ComponentDefaultProvider;
@@ -32,7 +33,7 @@ import org.apache.tapestry5.services.Request;
  * @tapestrydoc
  */
 @Events(EventConstants.VALIDATE)
-public class RadioGroup implements Field
+public class RadioGroup extends AbstractField
 {
     /**
      * The property read and updated by the group as a whole.
@@ -46,22 +47,6 @@ public class RadioGroup implements Field
      */
     @Parameter("false")
     private boolean disabled;
-
-    /**
-     * The user presentable label for the field. If not provided, a reasonable label is generated from the component's
-     * id, first by looking for a message key named "id-label" (substituting the component's actual id), then by
-     * converting the actual id to a presentable string (for example, "userId" to "User Id").
-     */
-    @Parameter(defaultPrefix = BindingConstants.LITERAL)
-    private String label;
-
-    /**
-     * The id used to generate a page-unique client-side identifier for the component. If a component renders multiple
-     * times, a suffix will be appended to the to id to ensure uniqueness. The uniqued value may be accessed via the
-     * {@link #getClientId() clientId property}.
-     */
-    @Parameter(value = "prop:componentResources.id", defaultPrefix = BindingConstants.LITERAL)
-    private String clientId;
 
     /**
      * A ValueEncoder used to convert server-side objects (provided by the
@@ -102,65 +87,14 @@ public class RadioGroup implements Field
     @Inject
     private FieldValidationSupport fieldValidationSupport;
 
-    private String controlName;
-
-    String defaultLabel()
-    {
-        return defaultProvider.defaultLabel(resources);
-    }
-
     final ValueEncoder defaultEncoder()
     {
         return defaultProvider.defaultValueEncoder("value", resources);
     }
 
-    private static class Setup implements ComponentAction<RadioGroup>
+    public void processSubmission(String elementName)
     {
-        private static final long serialVersionUID = -7984673040135949374L;
-
-        private final String controlName;
-
-        Setup(String controlName)
-        {
-            this.controlName = controlName;
-        }
-
-        public void execute(RadioGroup component)
-        {
-            component.setup(controlName);
-        }
-
-        @Override
-        public String toString()
-        {
-            return String.format("RadioGroup.Setup[%s]", controlName);
-        }
-    }
-
-    private static final ComponentAction<RadioGroup> PROCESS_SUBMISSION = new ComponentAction<RadioGroup>()
-    {
-        private static final long serialVersionUID = -3857110108918776386L;
-
-        public void execute(RadioGroup component)
-        {
-            component.processSubmission();
-        }
-
-        @Override
-        public String toString()
-        {
-            return "RadioGroup.ProcessSubmission";
-        }
-    };
-
-    private void setup(String elementName)
-    {
-        controlName = elementName;
-    }
-
-    private void processSubmission()
-    {
-        String rawValue = request.getParameter(controlName);
+        String rawValue = request.getParameter(elementName);
 
         tracker.recordInput(this, rawValue);
         try
@@ -182,13 +116,10 @@ public class RadioGroup implements Field
      */
     final void setupRender()
     {
-        ComponentAction<RadioGroup> action = new Setup(formSupport.allocateControlName(clientId));
-
-        formSupport.storeAndExecute(this, action);
-
         String submittedValue = tracker.getInput(this);
 
         final String selectedValue = submittedValue != null ? submittedValue : encoder.toClient(value);
+        final String controlName = getControlName();
 
         environment.push(RadioContainer.class, new RadioContainer()
         {
@@ -215,8 +146,12 @@ public class RadioGroup implements Field
                 return TapestryInternalUtils.isEqual(encoder.toClient(value), selectedValue);
             }
         });
+    }
 
-        formSupport.store(this, PROCESS_SUBMISSION);
+    final boolean beforeRenderBody()
+    {
+        // need to explicitly do this because all other AbstractFields don't render their body
+        return true;
     }
 
     /**
@@ -225,33 +160,6 @@ public class RadioGroup implements Field
     final void afterRender()
     {
         environment.pop(RadioContainer.class);
-    }
-
-    public String getControlName()
-    {
-        return controlName;
-    }
-
-    public String getLabel()
-    {
-        return label;
-    }
-
-    public boolean isDisabled()
-    {
-        return disabled;
-    }
-
-    /**
-     * Returns null; the radio group does not render as a tag and so doesn't have an id to share. RadioGroup implements
-     * {@link org.apache.tapestry5.Field} only so it can interact with the
-     * {@link org.apache.tapestry5.ValidationTracker}.
-     * 
-     * @return null
-     */
-    public String getClientId()
-    {
-        return null;
     }
 
     public boolean isRequired()
