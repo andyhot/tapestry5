@@ -14,20 +14,17 @@
 
 package org.apache.tapestry5.corelib.components;
 
-import org.apache.tapestry5.BindingConstants;
 import org.apache.tapestry5.ComponentResources;
-import org.apache.tapestry5.Field;
 import org.apache.tapestry5.MarkupWriter;
 import org.apache.tapestry5.RadioContainer;
 import org.apache.tapestry5.annotations.Environmental;
 import org.apache.tapestry5.annotations.Mixin;
 import org.apache.tapestry5.annotations.Parameter;
-import org.apache.tapestry5.corelib.mixins.DiscardBody;
+import org.apache.tapestry5.corelib.base.AbstractField;
 import org.apache.tapestry5.corelib.mixins.RenderDisabled;
 import org.apache.tapestry5.corelib.mixins.RenderInformals;
 import org.apache.tapestry5.ioc.annotations.Inject;
 import org.apache.tapestry5.services.ComponentDefaultProvider;
-import org.apache.tapestry5.services.javascript.JavaScriptSupport;
 
 /**
  * A radio button (i.e., &lt;input type="radio"&gt;). Radio buttons <strong>must</strong> operate within a
@@ -41,18 +38,10 @@ import org.apache.tapestry5.services.javascript.JavaScriptSupport;
  * @see Form
  * @see Select
  */
-public class Radio implements Field
+public class Radio extends AbstractField
 {
     @Environmental
     private RadioContainer container;
-
-    /**
-     * The user presentable label for the field. If not provided, a reasonable label is generated from the component's
-     * id, first by looking for a message key named "id-label" (substituting the component's actual id), then by
-     * converting the actual id to a presentable string (for example, "userId" to "User Id").
-     */
-    @Parameter(defaultPrefix = BindingConstants.LITERAL)
-    private String label;
 
     /**
      * The value associated with this radio button. This is used to determine which radio button will be selected when
@@ -75,41 +64,12 @@ public class Radio implements Field
     @Mixin
     private RenderDisabled renderDisabled;
 
-    @SuppressWarnings("unused")
-    @Mixin
-    private DiscardBody discardBody;
-
-    @Inject
-    private JavaScriptSupport jsSupport;
-
-    private String clientId;
-
-    private String controlName;
-
     /**
      * If true, then the field will render out with a disabled attribute (to turn off client-side behavior). Further, a
      * disabled field ignores any value in the request when the form is submitted.
      */
     @Parameter("false")
     private boolean disabled;
-
-    String defaultLabel()
-    {
-        return defaultProvider.defaultLabel(resources);
-    }
-
-    /**
-     * Returns the control name provided by the containing {@link org.apache.tapestry5.RadioContainer}.
-     */
-    public String getControlName()
-    {
-        return controlName;
-    }
-
-    public String getLabel()
-    {
-        return label;
-    }
 
     /**
      * Returns true if this component has been expressly disabled (via its disabled parameter), or if the
@@ -120,19 +80,16 @@ public class Radio implements Field
         return disabled || container.isDisabled();
     }
 
-    public String getClientId()
-    {
-        return clientId;
+    @Override
+    protected void processSubmission(String elementName) {
+        // do nothing, all work is done by surrounding RadioGroup
     }
 
     void beginRender(MarkupWriter writer)
     {
         String value = container.toClient(this.value);
 
-        clientId = jsSupport.allocateClientId(resources);
-        controlName = container.getControlName();
-
-        writer.element("input", "type", "radio", "id", clientId, "name", controlName, "value", value);
+        writer.element("input", "type", "radio", "id", getClientId(), "name", container.getControlName(), "value", value);
 
         if (container.isSelected(this.value))
             writer.attributes("checked", "checked");
