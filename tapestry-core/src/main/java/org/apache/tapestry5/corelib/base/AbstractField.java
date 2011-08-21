@@ -220,7 +220,7 @@ public abstract class AbstractField implements Field
         return controlName;
     }
 
-    public final boolean isDisabled()
+    public boolean isDisabled()
     {
         return disabled;
     }
