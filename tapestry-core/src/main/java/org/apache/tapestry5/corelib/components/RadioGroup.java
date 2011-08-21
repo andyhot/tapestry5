@@ -35,6 +35,8 @@ import org.apache.tapestry5.services.Request;
 @Events(EventConstants.VALIDATE)
 public class RadioGroup extends AbstractField
 {
+    public static final String CLIENT_EVENT = "tapestry:radiogroupchange";
+
     /**
      * The property read and updated by the group as a whole.
      */
@@ -86,6 +88,11 @@ public class RadioGroup extends AbstractField
 
     @Inject
     private FieldValidationSupport fieldValidationSupport;
+
+    protected String defaultTriggerEvent()
+    {
+        return CLIENT_EVENT;
+    }
 
     final ValueEncoder defaultEncoder()
     {
